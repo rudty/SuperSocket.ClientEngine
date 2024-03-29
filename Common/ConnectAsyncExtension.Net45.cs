@@ -16,51 +16,35 @@ namespace SuperSocket.ClientEngine
         public static void ConnectAsync(this EndPoint remoteEndPoint, EndPoint localEndPoint, ConnectedCallback callback, object state)
         {
             var e = CreateSocketAsyncEventArgs(remoteEndPoint, callback, state);
-            
-#if NETSTANDARD
+
+            var addressFamily = remoteEndPoint.AddressFamily;
 
             if (localEndPoint != null)
             {
-                var socket = new Socket(localEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                addressFamily = localEndPoint.AddressFamily;
+            }
 
-                try
+            var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+            try
+            {
+                if (localEndPoint != null)
                 {
                     socket.ExclusiveAddressUse = false;
                     socket.Bind(localEndPoint);
                 }
-                catch (Exception exc)
-                {
-                    callback(null, state, null, exc);
-                    return;
-                }
 
-                socket.ConnectAsync(e);
-            }
-            else
-            {
-                Socket.ConnectAsync(SocketType.Stream, ProtocolType.Tcp, e);
-            }            
-#else
-            var socket = PreferIPv4Stack()
-                ? new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) 
-                : new Socket(SocketType.Stream, ProtocolType.Tcp);
-            
-            if (localEndPoint != null)
-            {
-                try
+                bool wasAsync = socket.ConnectAsync(e);
+
+                if (!wasAsync)
                 {
-                    socket.ExclusiveAddressUse = false;
-                    socket.Bind(localEndPoint);
-                }
-                catch (Exception exc)
-                {
-                    callback(null, state, null, exc);
-                    return;
+                    callback(socket, state, e, null);
                 }
             }
-                
-            socket.ConnectAsync(e);
-#endif
+            catch (Exception exc)
+            {
+                callback(null, state, null, exc);
+            }
         }
     }
 }

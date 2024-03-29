@@ -1,12 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading;
-
-namespace SuperSocket.ClientEngine
+﻿namespace SuperSocket.ClientEngine
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Net;
+    using System.Net.Sockets;
+    using System.Threading;
+
     public abstract class TcpClientSession : ClientSession
     {
         protected string HostName { get; private set; }
@@ -19,7 +18,6 @@ namespace SuperSocket.ClientEngine
 
         }
 
-#if !SILVERLIGHT
         public override EndPoint LocalEndPoint
         {
             get
@@ -35,7 +33,6 @@ namespace SuperSocket.ClientEngine
                 base.LocalEndPoint = value;
             }
         }
-#endif
 
         public override int ReceiveBufferSize
         {
@@ -66,36 +63,31 @@ namespace SuperSocket.ClientEngine
 
         protected bool IsIgnorableSocketError(int errorCode)
         {
-            //SocketError.Shutdown = 10058
-            //SocketError.ConnectionAborted = 10053
-            //SocketError.ConnectionReset = 10054
-            //SocketError.OperationAborted = 995
-            if (errorCode == 10058 || errorCode == 10053 || errorCode == 10054 || errorCode == 995)
-                return true;
+            const int SocketErrorShutdown = (int)SocketError.Shutdown;
+            const int SocketErrorConnectionAborted = (int)SocketError.ConnectionAborted;
+            const int SocketErrorConnectionReset = (int)SocketError.ConnectionReset;
+            const int SocketErrorOperationAborted = (int)SocketError.OperationAborted;
+
+            switch (errorCode)
+            {
+                case SocketErrorShutdown:
+                case SocketErrorConnectionAborted:
+                case SocketErrorConnectionReset:
+                case SocketErrorOperationAborted:
+                    return true;
+            }
 
             return false;
         }
-
-#if SILVERLIGHT && !WINDOWS_PHONE
-        private SocketClientAccessPolicyProtocol m_ClientAccessPolicyProtocol = SocketClientAccessPolicyProtocol.Http;
-
-        public SocketClientAccessPolicyProtocol ClientAccessPolicyProtocol
-        {
-            get { return m_ClientAccessPolicyProtocol; }
-            set { m_ClientAccessPolicyProtocol = value; }
-        }
-#endif
 
         protected abstract void SocketEventArgsCompleted(object sender, SocketAsyncEventArgs e);
 
         public override void Connect(EndPoint remoteEndPoint)
         {
             if (remoteEndPoint == null)
-                throw new ArgumentNullException("remoteEndPoint");
+                throw new ArgumentNullException(nameof(remoteEndPoint));
 
-            var dnsEndPoint = remoteEndPoint as DnsEndPoint;
-
-            if (dnsEndPoint != null)
+            if (remoteEndPoint is DnsEndPoint dnsEndPoint)
             {
                 var hostName = dnsEndPoint.Host;
 
@@ -112,22 +104,25 @@ namespace SuperSocket.ClientEngine
             //If there is a proxy set, connect the proxy server by proxy connector
             if (Proxy != null)
             {
-                Proxy.Completed += new EventHandler<ProxyEventArgs>(Proxy_Completed);
-                Proxy.Connect(remoteEndPoint);
+                Proxy.Completed += Proxy_Completed;
                 m_InConnecting = true;
+                try
+                {
+                    Proxy.Connect(remoteEndPoint);
+                }
+                catch
+                {
+                    Proxy.Completed -= Proxy_Completed;
+                    m_InConnecting = false;
+                    throw;
+                }
+
                 return;
             }
 
             m_InConnecting = true;
 
-            //WindowsPhone doesn't have this property
-#if SILVERLIGHT && !WINDOWS_PHONE
-            remoteEndPoint.ConnectAsync(ClientAccessPolicyProtocol, ProcessConnect, null);
-#elif WINDOWS_PHONE
-            remoteEndPoint.ConnectAsync(ProcessConnect, null);
-#else
             remoteEndPoint.ConnectAsync(LocalEndPoint, ProcessConnect, null);
-#endif
         }
 
         void Proxy_Completed(object sender, ProxyEventArgs e)
@@ -142,6 +137,7 @@ namespace SuperSocket.ClientEngine
                     se = new SocketAsyncEventArgs();
                     se.RemoteEndPoint = new DnsEndPoint(e.TargetHostName, 0);
                 }
+
                 ProcessConnect(e.Socket, null, se, null);
                 return;
             }
@@ -184,9 +180,8 @@ namespace SuperSocket.ClientEngine
             {
                 m_InConnecting = false;
 
-                var socketError = SocketError.HostUnreachable;
+                SocketError socketError;
 
-#if !SILVERLIGHT && !NETFX_CORE
                 try
                 {
                     socketError = (SocketError)socket.GetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Error);
@@ -195,7 +190,7 @@ namespace SuperSocket.ClientEngine
                 {
                     socketError = SocketError.HostUnreachable;
                 }                
-#endif
+
                 OnError(new SocketException((int)socketError));
                 return;
             }
@@ -208,7 +203,6 @@ namespace SuperSocket.ClientEngine
             Client = socket;
             m_InConnecting = false;
 
-#if !SILVERLIGHT
             try
             {
                 // mono may throw an exception here
@@ -217,7 +211,6 @@ namespace SuperSocket.ClientEngine
             catch
             {
             }
-#endif
 
             var finalRemoteEndPoint = e.RemoteEndPoint != null ? e.RemoteEndPoint : socket.RemoteEndPoint;
 
@@ -238,7 +231,6 @@ namespace SuperSocket.ClientEngine
                 }
             }
 
-#if !SILVERLIGHT && !NETFX_CORE
             try
             {
                 //Set keep alive
@@ -248,7 +240,6 @@ namespace SuperSocket.ClientEngine
             {
             }
             
-#endif
             OnGetSocket(e);
         }
 
@@ -306,11 +297,7 @@ namespace SuperSocket.ClientEngine
             {
                 try
                 {
-#if NETFX_CORE                  
                     client.Dispose();
-#else
-                    client.Close();
-#endif
                 }
                 catch
                 {}

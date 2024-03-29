@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Net;
-using System.Net.Sockets;
 using System.Net.Security;
-using System.Threading;
-using System.Security.Authentication;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 
 namespace SuperSocket.ClientEngine

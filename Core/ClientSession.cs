@@ -1,32 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading;
-
-namespace SuperSocket.ClientEngine
+﻿namespace SuperSocket.ClientEngine
 {
-    public abstract class ClientSession : IClientSession, IBufferSetter
+    using System;
+    using System.Collections.Generic;
+    using System.Net;
+    using System.Net.Sockets;
+    using System.Threading;
+    using System.Threading.Tasks;
+
+    public abstract class ClientSession : IBufferSetter
     {
         public const int DefaultReceiveBufferSize = 4096;
         
-        protected Socket Client { get; set; }
+        public Socket Client { get; protected set; }
 
-        Socket IClientSession.Socket
-        {
-            get { return Client; }
-        }
-
-#if !SILVERLIGHT
         public virtual EndPoint LocalEndPoint { get; set; }
-#endif
 
         public bool IsConnected { get; private set; }
 
         public bool NoDelay { get; set; }
 
-        public ClientSession()
+        protected ClientSession()
         {
 
         }
@@ -44,35 +37,6 @@ namespace SuperSocket.ClientEngine
             this.Send(new ArraySegment<byte>(data, offset, length));
         }
 
-#if NO_SPINWAIT_CLASS
-        public void Send(ArraySegment<byte> segment)
-        {
-            if (TrySend(segment))
-                return;
-
-            while (true)
-            {
-                Thread.SpinWait(1);
-
-                if (TrySend(segment))
-                    return;
-            }
-        }
-
-        public void Send(IList<ArraySegment<byte>> segments)
-        {
-            if (TrySend(segments))
-                return;
-
-            while (true)
-            {
-                Thread.SpinWait(1);
-
-                if (TrySend(segments))
-                    return;
-            }
-        }
-#else
         public void Send(ArraySegment<byte> segment)
         {
             if (TrySend(segment))
@@ -104,8 +68,6 @@ namespace SuperSocket.ClientEngine
                     return;
             }
         }
-#endif
-
         public abstract void Close();
 
         private EventHandler m_Closed;

@@ -104,13 +104,7 @@ namespace SuperSocket.ClientEngine
             }
             catch (SocketException exc)
             {
-                int errorCode;
-
-#if !NETFX_CORE
-                errorCode = exc.ErrorCode;
-#else
-                errorCode = (int)exc.SocketErrorCode;
-#endif
+                int errorCode = (int)exc.SocketErrorCode;
 
                 if (!IsIgnorableSocketError(errorCode))
                     OnError(exc);
@@ -175,13 +169,7 @@ namespace SuperSocket.ClientEngine
             }
             catch (SocketException exc)
             {
-                int errorCode;
-
-#if !NETFX_CORE
-                errorCode = exc.ErrorCode;
-#else
-                errorCode = (int)exc.SocketErrorCode;
-#endif
+                int errorCode= (int)exc.SocketErrorCode;
 
                 if (EnsureSocketClosed() && !IsIgnorableSocketError(errorCode))
                     OnError(exc);
