@@ -1,14 +1,10 @@
-﻿using System;
-using System.Text;
-using System.Net;
-using System.Net.Sockets;
-
-namespace SuperSocket.ClientEngine
+﻿namespace SuperSocket.ClientEngine
 {
+    using System.Threading.Tasks;
+    using System.Net;
+
     public interface IProxyConnector
     {
-        void Connect(EndPoint remoteEndPoint);
-
-        event EventHandler<ProxyEventArgs> Completed;
+        Task<ProxyEventArgs> ConnectAsync(EndPoint remoteEndPoint);
     }
 }

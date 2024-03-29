@@ -27,15 +27,9 @@ namespace SuperSocket.ClientEngine
 
         public SecurityOption Security { get; set; }
 
-
-        protected override void SocketEventArgsCompleted(object sender, SocketAsyncEventArgs e)
-        {
-            ProcessConnect(sender as Socket, null, e, null);
-        }
-
         protected abstract void StartAuthenticatedStream(Socket client);
 
-        protected override void OnGetSocket(SocketAsyncEventArgs e)
+        protected override void OnGetSocket()
         {
             try
             {

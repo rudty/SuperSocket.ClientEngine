@@ -26,7 +26,7 @@
 
         public int SendingQueueSize { get; set; }
 
-        public abstract void Connect(EndPoint remoteEndPoint);
+        public abstract Task ConnectAsync(EndPoint remoteEndPoint);
 
         public abstract bool TrySend(ArraySegment<byte> segment);
 

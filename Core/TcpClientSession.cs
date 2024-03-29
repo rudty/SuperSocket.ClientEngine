@@ -4,7 +4,9 @@
     using System.Collections.Generic;
     using System.Net;
     using System.Net.Sockets;
+    using System.Runtime.ConstrainedExecution;
     using System.Threading;
+    using System.Threading.Tasks;
 
     public abstract class TcpClientSession : ClientSession
     {
@@ -80,9 +82,7 @@
             return false;
         }
 
-        protected abstract void SocketEventArgsCompleted(object sender, SocketAsyncEventArgs e);
-
-        public override void Connect(EndPoint remoteEndPoint)
+        public override async Task ConnectAsync(EndPoint remoteEndPoint)
         {
             if (remoteEndPoint == null)
                 throw new ArgumentNullException(nameof(remoteEndPoint));
@@ -104,15 +104,14 @@
             //If there is a proxy set, connect the proxy server by proxy connector
             if (Proxy != null)
             {
-                Proxy.Completed += Proxy_Completed;
                 m_InConnecting = true;
                 try
                 {
-                    Proxy.Connect(remoteEndPoint);
+                    var proxyResult = await Proxy.ConnectAsync(remoteEndPoint);
+                    Proxy_Completed(proxyResult);
                 }
                 catch
                 {
-                    Proxy.Completed -= Proxy_Completed;
                     m_InConnecting = false;
                     throw;
                 }
@@ -122,48 +121,56 @@
 
             m_InConnecting = true;
 
-            remoteEndPoint.ConnectAsync(LocalEndPoint, ProcessConnect, null);
-        }
-
-        void Proxy_Completed(object sender, ProxyEventArgs e)
-        {
-            Proxy.Completed -= new EventHandler<ProxyEventArgs>(Proxy_Completed);
-
-            if (e.Connected)
+            try
             {
-                SocketAsyncEventArgs se = null;
-                if (e.TargetHostName != null)
+                Socket socket;
+                var localEndPoint = LocalEndPoint;
+                if (localEndPoint != null)
                 {
-                    se = new SocketAsyncEventArgs();
-                    se.RemoteEndPoint = new DnsEndPoint(e.TargetHostName, 0);
+                    socket = new Socket(localEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                    socket.ExclusiveAddressUse = false;
+                    socket.Bind(localEndPoint);
+                }
+                else
+                {
+                    socket = new Socket(remoteEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
                 }
 
-                ProcessConnect(e.Socket, null, se, null);
+                await socket.ConnectAsync(remoteEndPoint);
+                ProcessConnect(socket, null, null);
+            }
+            catch (Exception exception)
+            {
+                ProcessConnect(null, null, exception);
+                throw;
+            }
+        }
+
+        void Proxy_Completed(ProxyResult result)
+        {
+
+            if (result.Connected)
+            {
+                DnsEndPoint endPoint = null;
+                if (result.TargetHostName != null)
+                {
+                    endPoint = new DnsEndPoint(result.TargetHostName, 0);
+                }
+
+                ProcessConnect(result.Socket, endPoint, null);
                 return;
             }
 
-            OnError(new Exception("proxy error", e.Exception));
+            OnError(new Exception("proxy error", result.Exception));
             m_InConnecting = false;
         }
 
-        protected void ProcessConnect(Socket socket, object state, SocketAsyncEventArgs e, Exception exception)
+        protected void ProcessConnect(Socket socket, EndPoint remoteEndpoint, Exception exception)
         {
             if (exception != null)
             {
                 m_InConnecting = false;
                 OnError(exception);
-
-                if (e != null)
-                    e.Dispose();
-                
-                return;
-            }
-
-            if (e != null && e.SocketError != SocketError.Success)
-            {
-                m_InConnecting = false;
-                OnError(new SocketException((int)e.SocketError));
-                e.Dispose();
                 return;
             }
 
@@ -195,11 +202,6 @@
                 return;
             }
 
-            if (e == null)
-                e = new SocketAsyncEventArgs();
-
-            e.Completed += SocketEventArgsCompleted;
-
             Client = socket;
             m_InConnecting = false;
 
@@ -212,23 +214,18 @@
             {
             }
 
-            var finalRemoteEndPoint = e.RemoteEndPoint != null ? e.RemoteEndPoint : socket.RemoteEndPoint;
+            var finalRemoteEndPoint = remoteEndpoint ?? socket.RemoteEndPoint;
 
             if (string.IsNullOrEmpty(HostName))
             {
                 HostName = GetHostOfEndPoint(finalRemoteEndPoint);
             }
-            else// connect with DnsEndPoint
+            else if (finalRemoteEndPoint is DnsEndPoint finalDnsEndPoint)
             {
-                var finalDnsEndPoint = finalRemoteEndPoint as DnsEndPoint;
+                var hostName = finalDnsEndPoint.Host;
 
-                if (finalDnsEndPoint != null)
-                {
-                    var hostName = finalDnsEndPoint.Host;
-
-                    if (!string.IsNullOrEmpty(hostName) && !HostName.Equals(hostName, StringComparison.OrdinalIgnoreCase))
-                        HostName = hostName;
-                }
+                if (!string.IsNullOrEmpty(hostName) && !HostName.Equals(hostName, StringComparison.OrdinalIgnoreCase))
+                    HostName = hostName;
             }
 
             try
@@ -240,7 +237,7 @@
             {
             }
             
-            OnGetSocket(e);
+            OnGetSocket();
         }
 
         private string GetHostOfEndPoint(EndPoint endPoint)
@@ -260,7 +257,7 @@
             return string.Empty;
         }
 
-        protected abstract void OnGetSocket(SocketAsyncEventArgs e);
+        protected abstract void OnGetSocket();
 
         protected bool EnsureSocketClosed()
         {

@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Net.Sockets;
-using System.Reflection;
-using System.Text;
-
-namespace SuperSocket.ClientEngine
+﻿namespace SuperSocket.ClientEngine
 {
+    using System;
+    using System.Net.Sockets;
+
     public class AsyncTcpSession : TcpClientSession
     {
         private SocketAsyncEventArgs m_SocketEventArgs;
@@ -18,11 +14,11 @@ namespace SuperSocket.ClientEngine
 
         }
 
-        protected override void SocketEventArgsCompleted(object sender, SocketAsyncEventArgs e)
+        protected void SocketEventArgsCompleted(object sender, SocketAsyncEventArgs e)
         {
             if (e.LastOperation == SocketAsyncOperation.Connect)
             {
-                ProcessConnect(sender as Socket, null, e, null);
+                ProcessConnect(sender as Socket, e.RemoteEndPoint, null);
                 return;
             }
 
@@ -32,15 +28,14 @@ namespace SuperSocket.ClientEngine
         protected override void SetBuffer(ArraySegment<byte> bufferSegment)
         {
             base.SetBuffer(bufferSegment);
-
-            if (m_SocketEventArgs != null)
-            {
-                m_SocketEventArgs.SetBuffer(bufferSegment.Array, bufferSegment.Offset, bufferSegment.Count);
-            }
+            m_SocketEventArgs?.SetBuffer(bufferSegment.Array, bufferSegment.Offset, bufferSegment.Count);
         }
 
-        protected override void OnGetSocket(SocketAsyncEventArgs e)
+        protected override void OnGetSocket()
         {
+            var e = new SocketAsyncEventArgs();
+            e.Completed += SocketEventArgsCompleted;
+
             if (Buffer.Array == null)
             {
                 var receiveBufferSize = ReceiveBufferSize;
@@ -59,12 +54,6 @@ namespace SuperSocket.ClientEngine
 
             OnConnected();
             StartReceive();
-        }
-
-        private void BeginReceive()
-        {
-            if (!Client.ReceiveAsync(m_SocketEventArgs))
-                ProcessReceive(m_SocketEventArgs);
         }
 
         private void ProcessReceive(SocketAsyncEventArgs e)
@@ -89,7 +78,7 @@ namespace SuperSocket.ClientEngine
             StartReceive();
         }
 
-        void StartReceive()
+        private void StartReceive()
         {
             bool raiseEvent;
 
