@@ -1,14 +1,14 @@
-﻿using System;
-using System.Net;
-using System.Net.Security;
-using System.Net.Sockets;
-using System.Threading.Tasks;
-
-namespace SuperSocket.ClientEngine
+﻿namespace SuperSocket.ClientEngine
 {
+    using System;
+    using System.Net;
+    using System.Net.Security;
+    using System.Net.Sockets;
+    using System.Threading.Tasks;
+
     public class NegotiateStreamTcpSession : AuthenticatedStreamTcpSession
     {
-        protected override void StartAuthenticatedStream(Socket client)
+        protected override async Task<AuthenticatedStream> StartAuthenticatedStream(Socket client)
         {
             var securityOption = Security;
 
@@ -21,24 +21,22 @@ namespace SuperSocket.ClientEngine
 
             var credential = securityOption.Credential;
 
-            if (credential == null)
-                credential = (NetworkCredential)CredentialCache.DefaultCredentials;
-
-            Task.Run(async () =>
+            if (credential is null)
             {
-                try
-                {
-                    await stream.AuthenticateAsClientAsync(credential, HostName);
-                }
-                catch(Exception e)
-                {
-                    EnsureSocketClosed();
-                    OnError(e);
-                    return;
-                }
+                credential = (NetworkCredential)CredentialCache.DefaultCredentials;
+            }
 
-                OnAuthenticatedStreamConnected(stream);
-            });
+            try
+            {
+                await stream.AuthenticateAsClientAsync(credential, HostName);
+            }
+            catch
+            {
+                EnsureSocketClosed();
+                throw;
+            }
+
+            return stream;
         }
     }
 }

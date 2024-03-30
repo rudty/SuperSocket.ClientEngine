@@ -2,6 +2,7 @@
 {
     using System;
     using System.Net.Sockets;
+    using System.Threading.Tasks;
 
     public class AsyncTcpSession : TcpClientSession
     {
@@ -18,7 +19,7 @@
         {
             if (e.LastOperation == SocketAsyncOperation.Connect)
             {
-                ProcessConnect(sender as Socket, e.RemoteEndPoint, null);
+                _ = ProcessConnect(sender as Socket, e.RemoteEndPoint, null);
                 return;
             }
 
@@ -31,7 +32,7 @@
             m_SocketEventArgs?.SetBuffer(bufferSegment.Array, bufferSegment.Offset, bufferSegment.Count);
         }
 
-        protected override void OnGetSocket()
+        protected override async Task OnConnected()
         {
             var e = new SocketAsyncEventArgs();
             e.Completed += SocketEventArgsCompleted;
@@ -52,7 +53,7 @@
 
             m_SocketEventArgs = e;
 
-            OnConnected();
+            await base.OnConnected();
             StartReceive();
         }
 

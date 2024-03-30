@@ -1,24 +1,18 @@
-﻿using System;
-using System.Net.Security;
-using System.Net.Sockets;
-using System.Threading;
+﻿
 
 namespace SuperSocket.ClientEngine
 {
+    using System;
+    using System.IO;
+    using System.Net.Security;
+    using System.Net.Sockets;
+    using System.Threading;
+    using System.Threading.Tasks;
+
     public abstract class AuthenticatedStreamTcpSession : TcpClientSession
     {
-        class StreamAsyncState
-        {
-            public AuthenticatedStream Stream { get; set; }
-
-            public Socket Client { get; set; }
-
-            public PosList<ArraySegment<byte>> SendingItems { get; set; }
-        }
-
         private AuthenticatedStream m_Stream;
-                
-
+        
         public AuthenticatedStreamTcpSession()
             : base()
         {
@@ -27,28 +21,25 @@ namespace SuperSocket.ClientEngine
 
         public SecurityOption Security { get; set; }
 
-        protected abstract void StartAuthenticatedStream(Socket client);
+        protected abstract Task<AuthenticatedStream> StartAuthenticatedStream(Socket client);
 
-        protected override void OnGetSocket()
+        protected override async Task OnConnected()
         {
             try
             {
-                StartAuthenticatedStream(Client);
+                m_Stream = await StartAuthenticatedStream(Client);
             }
             catch (Exception exc)
             {
                 if (!IsIgnorableException(exc))
-                    OnError(exc);
+                {
+                    throw;
+                }
             }
-        }
-        
-        protected void OnAuthenticatedStreamConnected(AuthenticatedStream stream)
-        {
-            m_Stream = stream;
 
-            OnConnected();
+            await base.OnConnected();
 
-            if(Buffer.Array == null)
+            if (Buffer.Array == null)
             {
                 var receiveBufferSize = ReceiveBufferSize;
 
@@ -60,11 +51,6 @@ namespace SuperSocket.ClientEngine
                 Buffer = new ArraySegment<byte>(new byte[receiveBufferSize]);
             }
 
-            BeginRead();
-        }
-
-        void BeginRead()
-        {
             ReadAsync();
         }
         

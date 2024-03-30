@@ -5,6 +5,6 @@
 
     public interface IProxyConnector
     {
-        Task<ProxyEventArgs> ConnectAsync(EndPoint remoteEndPoint);
+        Task<ProxyResult> ConnectAsync(EndPoint remoteEndPoint);
     }
 }

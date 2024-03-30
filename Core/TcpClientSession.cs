@@ -108,7 +108,7 @@
                 try
                 {
                     var proxyResult = await Proxy.ConnectAsync(remoteEndPoint);
-                    Proxy_Completed(proxyResult);
+                    await Proxy_Completed(proxyResult);
                 }
                 catch
                 {
@@ -137,16 +137,16 @@
                 }
 
                 await socket.ConnectAsync(remoteEndPoint);
-                ProcessConnect(socket, null, null);
+                await ProcessConnect(socket, null, null);
             }
             catch (Exception exception)
             {
-                ProcessConnect(null, null, exception);
+                await ProcessConnect(null, null, exception);
                 throw;
             }
         }
 
-        void Proxy_Completed(ProxyResult result)
+        private Task Proxy_Completed(ProxyResult result)
         {
 
             if (result.Connected)
@@ -157,15 +157,16 @@
                     endPoint = new DnsEndPoint(result.TargetHostName, 0);
                 }
 
-                ProcessConnect(result.Socket, endPoint, null);
-                return;
+                return ProcessConnect(result.Socket, endPoint, null);
             }
 
             OnError(new Exception("proxy error", result.Exception));
             m_InConnecting = false;
+
+            return Task.CompletedTask;
         }
 
-        protected void ProcessConnect(Socket socket, EndPoint remoteEndpoint, Exception exception)
+        protected async Task ProcessConnect(Socket socket, EndPoint remoteEndpoint, Exception exception)
         {
             if (exception != null)
             {
@@ -237,7 +238,7 @@
             {
             }
             
-            OnGetSocket();
+            await OnConnected();
         }
 
         private string GetHostOfEndPoint(EndPoint endPoint)
@@ -256,8 +257,6 @@
 
             return string.Empty;
         }
-
-        protected abstract void OnGetSocket();
 
         protected bool EnsureSocketClosed()
         {

@@ -106,15 +106,7 @@
             handler(this, new ErrorEventArgs(e));
         }
 
-        private EventHandler m_Connected;
-
-        public event EventHandler Connected
-        {
-            add { m_Connected += value; }
-            remove { m_Connected -= value; }
-        }
-
-        protected virtual void OnConnected()
+        protected virtual Task OnConnected()
         {
             var client = Client;
 
@@ -131,12 +123,7 @@
             }
 
             IsConnected = true;
-
-            var handler = m_Connected;
-            if (handler == null)
-                return;
-
-            handler(this, EventArgs.Empty);
+            return Task.CompletedTask;
         }
 
         private EventHandler<DataEventArgs> m_DataReceived;

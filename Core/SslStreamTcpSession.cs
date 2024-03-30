@@ -1,13 +1,14 @@
-﻿using System;
-using System.Net.Security;
-using System.Net.Sockets;
-using System.Security.Cryptography.X509Certificates;
-
-namespace SuperSocket.ClientEngine
+﻿namespace SuperSocket.ClientEngine
 {
+    using System;
+    using System.Net.Security;
+    using System.Net.Sockets;
+    using System.Security.Cryptography.X509Certificates;
+    using System.Threading.Tasks;
+
     public class SslStreamTcpSession : AuthenticatedStreamTcpSession
     {
-        protected override void StartAuthenticatedStream(Socket client)
+        protected override async Task<AuthenticatedStream> StartAuthenticatedStream(Socket client)
         {
             var securityOption = Security;
 
@@ -16,26 +17,20 @@ namespace SuperSocket.ClientEngine
                 throw new Exception("securityOption was not configured");
             }
 
-
-            AuthenticateAsClientAsync(new SslStream(new NetworkStream(client), false, ValidateRemoteCertificate),
-                Security);
-        }
-
-        private async void AuthenticateAsClientAsync(SslStream sslStream, SecurityOption securityOption)
-        {
+            var sslStream = new SslStream(new NetworkStream(client), false, ValidateRemoteCertificate);
+            
             try
             {
                 await sslStream.AuthenticateAsClientAsync(HostName, securityOption.Certificates,
                     securityOption.EnabledSslProtocols, false);
             }
-            catch (Exception e)
+            catch
             {
                 EnsureSocketClosed();
-                OnError(e);
-                return;
+                throw;
             }
 
-            OnAuthenticatedStreamConnected(sslStream);
+            return sslStream;
         }
 
         /// <summary>
