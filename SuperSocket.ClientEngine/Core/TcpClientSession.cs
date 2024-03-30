@@ -137,11 +137,11 @@
                 }
 
                 await socket.ConnectAsync(remoteEndPoint);
-                await ProcessConnect(socket, null, null);
+                await ProcessConnect(socket, null);
             }
-            catch (Exception exception)
+            catch
             {
-                await ProcessConnect(null, null, exception);
+                m_InConnecting = false;
                 throw;
             }
         }
@@ -157,29 +157,20 @@
                     endPoint = new DnsEndPoint(result.TargetHostName, 0);
                 }
 
-                return ProcessConnect(result.Socket, endPoint, null);
+                return ProcessConnect(result.Socket, endPoint);
             }
 
-            OnError(new Exception("proxy error", result.Exception));
             m_InConnecting = false;
 
-            return Task.CompletedTask;
+            throw new Exception("proxy error", result.Exception);
         }
 
-        protected async Task ProcessConnect(Socket socket, EndPoint remoteEndpoint, Exception exception)
+        protected async Task ProcessConnect(Socket socket, EndPoint remoteEndpoint)
         {
-            if (exception != null)
-            {
-                m_InConnecting = false;
-                OnError(exception);
-                return;
-            }
-
             if (socket == null)
             {
                 m_InConnecting = false;
-                OnError(new SocketException((int)SocketError.ConnectionAborted));
-                return;
+                throw new SocketException((int)SocketError.ConnectionAborted);
             }
 
             //To walk around a MonoTouch's issue
@@ -199,8 +190,7 @@
                     socketError = SocketError.HostUnreachable;
                 }                
 
-                OnError(new SocketException((int)socketError));
-                return;
+                throw new SocketException((int)socketError);
             }
 
             Client = socket;

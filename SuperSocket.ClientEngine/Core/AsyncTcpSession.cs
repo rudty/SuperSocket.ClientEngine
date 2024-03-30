@@ -19,7 +19,7 @@
         {
             if (e.LastOperation == SocketAsyncOperation.Connect)
             {
-                _ = ProcessConnect(sender as Socket, e.RemoteEndPoint, null);
+                _ = ProcessConnect(sender as Socket, e.RemoteEndPoint);
                 return;
             }
 

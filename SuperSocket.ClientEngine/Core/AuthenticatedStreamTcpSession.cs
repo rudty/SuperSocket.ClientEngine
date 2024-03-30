@@ -25,17 +25,7 @@ namespace SuperSocket.ClientEngine
 
         protected override async Task OnConnected()
         {
-            try
-            {
-                m_Stream = await StartAuthenticatedStream(Client);
-            }
-            catch (Exception exc)
-            {
-                if (!IsIgnorableException(exc))
-                {
-                    throw;
-                }
-            }
+            m_Stream = await StartAuthenticatedStream(Client);
 
             await base.OnConnected();
 

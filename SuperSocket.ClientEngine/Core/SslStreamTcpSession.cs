@@ -17,10 +17,10 @@
                 throw new Exception("securityOption was not configured");
             }
 
-            var sslStream = new SslStream(new NetworkStream(client), false, ValidateRemoteCertificate);
-            
+            SslStream sslStream;
             try
             {
+                sslStream = new SslStream(new NetworkStream(client), false, ValidateRemoteCertificate);
                 await sslStream.AuthenticateAsClientAsync(HostName, securityOption.Certificates,
                     securityOption.EnabledSslProtocols, false);
             }
