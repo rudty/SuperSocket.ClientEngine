@@ -17,7 +17,7 @@
                 throw new Exception("securityOption was not configured");
             }
 
-            SslStream sslStream;
+            SslStream sslStream = null;
             try
             {
                 sslStream = new SslStream(new NetworkStream(client), false, ValidateRemoteCertificate);
@@ -26,6 +26,15 @@
             }
             catch
             {
+                try
+                {
+                    sslStream?.Dispose();
+                }
+                catch
+                {
+                    // ignore
+                }
+
                 EnsureSocketClosed();
                 throw;
             }
