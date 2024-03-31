@@ -1,42 +1,54 @@
 namespace Test;
 
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using Buffer = System.Buffer;
+using SuperSocket.ClientEngine;
 
-public class TcpUnitTestBase : IDisposable
+public abstract class UnitTestBase : IDisposable
 {
     internal static int ServerPort = 14346;
+    internal const int ReceiveBufferSize = 1024;
     
     private readonly Socket serverSocket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-    private readonly CancellationTokenSource testCancellationTokenSource = new();
+    internal readonly CancellationTokenSource testCancellationTokenSource = new();
     internal readonly IPEndPoint LocalHostEndPoint = new(IPAddress.Loopback, Interlocked.Increment(ref ServerPort));
-    internal TcpUnitTestBase()
+
+    internal readonly ClientSession clientSession;
+    internal UnitTestBase(ClientSession client)
     {
         ListenAndServe();
+        clientSession = client;
+    }
+
+    public async Task<ClientSession> GetClientAndConnectAsync()
+    {
+        if (!clientSession.IsConnected)
+        {
+            await clientSession.ConnectAsync(LocalHostEndPoint);
+        }
+
+        return clientSession;
     }
 
     /// <summary>
     /// Get Random byte[]
     /// </summary>
-    /// <param name="repeatCount">server response count</param>
     /// <param name="size">random size</param>
-    public static byte[] MakeRandomByteArrayPacket(int repeatCount, int size)
+    public static byte[] MakeRandomByteArrayPacket(int size = 10)
     {
         var b = new byte[size];
         Random.Shared.NextBytes(b);
-        b[0] = (byte)repeatCount;
 
         return b;
     }
 
-    public static byte[] ByteArrayMultiply(byte[] b, int repeatCount)
+    public static byte[] ByteArrayMultiply(ArraySegment<byte> b, int repeatCount)
     {
-        var multiplyByteArray = new byte[b.Length * repeatCount];
+        var multiplyByteArray = new byte[b.Count * repeatCount];
         for (var r = 0; r < repeatCount; ++r)
         {
-            Buffer.BlockCopy(b, 0, multiplyByteArray, r * b.Length, b.Length);
+            Buffer.BlockCopy(b.Array!, b.Offset, multiplyByteArray, r * b.Count, b.Count);
         }
 
         return multiplyByteArray;
@@ -56,7 +68,7 @@ public class TcpUnitTestBase : IDisposable
             while (true)
             {
                 var clientSocket = await serverSocket.AcceptAsync(testCancellationTokenSource.Token).ConfigureAwait(false);
-                _ = DoEcho(clientSocket);
+                _ = RunEcho(clientSocket);
             }
         }
         catch
@@ -65,31 +77,35 @@ public class TcpUnitTestBase : IDisposable
         }
     }
 
-    internal async Task DoEcho(Socket clientSocket) 
+    private async Task RunEcho(Socket clientSocket)
     {
-        var b = new byte[1024];
+        var b = new byte[ReceiveBufferSize];
         try
         {
+            await using var stream = await GetServerStream(clientSocket);
             while (!testCancellationTokenSource.IsCancellationRequested)
             {
-                var len = await clientSocket.ReceiveAsync(b, testCancellationTokenSource.Token).ConfigureAwait(false);
-                var repeatCount = (int)b[0];
-                var sendList = new List<ArraySegment<byte>>();
-                for (var i = 0; i < repeatCount; i++)
+                var len = await stream.ReadAsync(b);
+                if (len == 0)
                 {
-                    sendList.Add(new ArraySegment<byte>(b, 0, len));
+                    break;
                 }
 
-                await clientSocket.SendAsync(sendList, SocketFlags.None).ConfigureAwait(false);
+                await stream.WriteAsync(new ReadOnlyMemory<byte>(b, 0, len), testCancellationTokenSource.Token);
             }
         }
         catch
         {
-            ShutdownSocket(clientSocket);
+            // ignore
+            
         }
+
+        ShutdownSocket(clientSocket);
     }
 
-    private void ShutdownSocket(Socket socket)
+    internal abstract Task<Stream> GetServerStream(Socket clientSocket);
+
+    internal static void ShutdownSocket(Socket socket)
     {
         try
         {
