@@ -1,5 +1,6 @@
 namespace Test;
 
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -31,27 +32,54 @@ public abstract class UnitTestBase : IDisposable
         return clientSession;
     }
 
-    /// <summary>
-    /// Get Random byte[]
-    /// </summary>
-    /// <param name="size">random size</param>
-    public static byte[] MakeRandomByteArrayPacket(int size = 10)
+    internal async Task<ArraySegment<byte>> ConnectSendReceive1(ArraySegment<byte> sendData)
     {
-        var b = new byte[size];
-        Random.Shared.NextBytes(b);
+        var session = await GetClientAndConnectAsync();
 
-        return b;
+        var receiveCompletionSource = new TaskCompletionSource<ArraySegment<byte>>();
+        session.DataReceived += (object? sender, DataEventArgs args) =>
+        {
+            receiveCompletionSource.SetResult(new ArraySegment<byte>(args.Data, args.Offset, args.Length));
+        };
+        session.Send(sendData);
+
+        var receiveData = await receiveCompletionSource.Task;
+        session.Close();
+        return receiveData;
     }
 
-    public static byte[] ByteArrayMultiply(ArraySegment<byte> b, int repeatCount)
+    internal async Task<ArraySegment<byte>[]> ConnectSendReceiveRepeat(ArraySegment<byte> sendData, int repeatCount)
     {
-        var multiplyByteArray = new byte[b.Count * repeatCount];
-        for (var r = 0; r < repeatCount; ++r)
+        var session = await GetClientAndConnectAsync();
+
+        var queue = new ConcurrentQueue<ArraySegment<byte>>();
+        session.DataReceived += (_, args) =>
         {
-            Buffer.BlockCopy(b.Array!, b.Offset, multiplyByteArray, r * b.Count, b.Count);
+            for (var i = 0; i < repeatCount; ++i)
+            {
+                queue.Enqueue(new ArraySegment<byte>(args.Data, args.Offset, args.Length));
+            }
+        };
+
+        var ret = new List<ArraySegment<byte>>(repeatCount);
+        for (var it = 0; it < repeatCount; ++it)
+        {
+            session.Send(sendData);
+            while (queue.Count is 0)
+            {
+                await Task.Delay(5);
+            }
+
+            if (!queue.TryDequeue(out var seg))
+            {
+                Assert.Fail($"{nameof(queue)}.{nameof(queue.TryDequeue)} fail");
+            }
+
+            ret.Add(seg);
         }
 
-        return multiplyByteArray;
+        session.Close();
+        return ret.ToArray();
     }
 
     internal void ListenAndServe()

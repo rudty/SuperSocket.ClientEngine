@@ -28,33 +28,31 @@ public class AsyncSessionTest : UnitTestBase
     {
         var session = await GetClientAndConnectAsync();
 
-        var sendData = MakeRandomByteArrayPacket();
+        var sendData = TestUtil.MakeRandomByteArrayPacket();
         session.Send(new ArraySegment<byte>(sendData));
         await Task.Delay(500);
         session.Close();
     }
 
-    private async Task<ArraySegment<byte>> SendAndReceive(ArraySegment<byte> sendData)
+    [Fact]
+    public async Task SendAndReceive()
     {
-        var session = await GetClientAndConnectAsync();
-
-        var receiveCompletionSource = new TaskCompletionSource<ArraySegment<byte>>();
-        session.DataReceived += (object? sender, DataEventArgs args) =>
-        {
-            receiveCompletionSource.SetResult(new ArraySegment<byte>(args.Data, args.Offset, args.Length));
-        };
-        session.Send(sendData);
-
-        var receiveData = await receiveCompletionSource.Task;
-        session.Close();
-        return receiveData;
+        var sendData = TestUtil.MakeRandomByteArrayPacket();
+        var receiveData = await ConnectSendReceive1(sendData);
+        Assert.Equal(sendData, receiveData);
     }
 
     [Fact]
-    public async Task SendAndReceive1()
+    public async Task SendAndReceive5()
     {
-        var sendData = MakeRandomByteArrayPacket();
-        var receiveData = await SendAndReceive(sendData);
-        Assert.Equal(sendData, receiveData);
+        const int repeatCount = 5;
+        var sendData = TestUtil.MakeRandomByteArrayPacket();
+        var receiveData = await ConnectSendReceiveRepeat(sendData, repeatCount);
+        Assert.Equal(repeatCount, receiveData.Length);
+
+        for (var i = 0; i < repeatCount; ++i)
+        {
+            Assert.Equal(sendData, receiveData[i]);
+        }
     }
 }
