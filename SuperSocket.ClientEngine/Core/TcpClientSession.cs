@@ -121,9 +121,9 @@
 
             m_InConnecting = true;
 
+            Socket socket = null;
             try
             {
-                Socket socket;
                 var localEndPoint = LocalEndPoint;
                 if (localEndPoint != null)
                 {
@@ -142,6 +142,27 @@
             catch
             {
                 m_InConnecting = false;
+                if (socket != null)
+                {
+                    try
+                    {
+                        socket.Shutdown(SocketShutdown.Both);
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+
+                    try
+                    {
+                        socket.Dispose();
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                }
+
                 throw;
             }
         }
